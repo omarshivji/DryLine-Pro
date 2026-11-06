@@ -110,12 +110,12 @@ extension UIColor {
 // Six styles only. Every piece of text in the app uses one of these.
 // Space Grotesk if bundled (see README), otherwise SF Pro.
 //
-//   title     28 bold      screen titles
-//   number    40 bold      every quantity / big figure
-//   headline  17 semibold  card headings, room dimensions
-//   button    16 semibold  every button label
-//   body      15 regular   subtitles, sentences
-//   caption   13 medium    tile labels, units, card titles
+//   title     27 bold      screen titles
+//   number    39 bold      every quantity / big figure
+//   headline  16 semibold  card headings, room dimensions
+//   button    15 semibold  every button label
+//   body      14 regular   subtitles, sentences
+//   caption   12 medium    tile labels, units, card titles
 
 enum DLFont {
     static func grotesk(_ size: CGFloat, _ weight: Font.Weight) -> Font {
@@ -132,12 +132,12 @@ enum DLFont {
         return .system(size: size, weight: weight)
     }
 
-    static let title    = grotesk(28, .bold)
-    static let number   = grotesk(40, .bold)
-    static let headline = grotesk(17, .semibold)
-    static let button   = grotesk(16, .semibold)
-    static let body     = grotesk(15, .regular)
-    static let caption  = grotesk(13, .medium)
+    static let title    = grotesk(27, .bold)
+    static let number   = grotesk(39, .bold)
+    static let headline = grotesk(16, .semibold)
+    static let button   = grotesk(15, .semibold)
+    static let body     = grotesk(14, .regular)
+    static let caption  = grotesk(12, .medium)
 }
 
 enum DLMetric {
@@ -147,19 +147,53 @@ enum DLMetric {
     static let tilePadding: CGFloat = 16
     /// Every button in the app is this tall (icon buttons are this wide too).
     static let buttonHeight: CGFloat = 52
-    static let iconSize: CGFloat = 17
+    static let iconSize: CGFloat = 16
+}
+
+// MARK: - Surfaces
+// Lets buttons and fields know whether they sit on the page or inside a grey
+// card, so a secondary button never disappears grey-on-grey. PanelCard sets
+// `.card` for everything inside it.
+
+enum DLSurface { case page, card }
+
+private struct DLSurfaceKey: EnvironmentKey {
+    static let defaultValue: DLSurface = .page
+}
+
+extension EnvironmentValues {
+    var dlSurface: DLSurface {
+        get { self[DLSurfaceKey.self] }
+        set { self[DLSurfaceKey.self] = newValue }
+    }
 }
 
 // MARK: - Buttons
-// One shape (capsule), one height, one font. Two colour roles only:
-//   primary   — ink fill, onInk text   (one per screen: the main action)
-//   secondary — grey fill, text colour (everything else)
+// One shape (capsule), one height, one font. Three colour roles:
+//   primary     — ink fill, onInk text  (one per screen: the main action)
+//   secondary   — grey on the page, white inside a card (everything else)
+//   destructive — soft red fill, red text (delete / discard)
 
 enum DLButtonRole {
-    case primary, secondary
+    case primary, secondary, destructive
 
-    var fill: Color { self == .primary ? Theme.ink : Theme.panel }
-    var label: Color { self == .primary ? Theme.onInk : Theme.text }
+    func fill(on surface: DLSurface) -> Color {
+        switch self {
+        case .primary:     return Theme.ink
+        case .secondary:   return surface == .card ? Theme.bg : Theme.panel
+        case .destructive: return Color.red.opacity(0.12)
+        }
+    }
+    /// Fill on the page (outside cards).
+    var fill: Color { fill(on: .page) }
+
+    var label: Color {
+        switch self {
+        case .primary:     return Theme.onInk
+        case .secondary:   return Theme.text
+        case .destructive: return Color.red
+        }
+    }
 }
 
 struct DLButtonStyle: ButtonStyle {
@@ -167,14 +201,28 @@ struct DLButtonStyle: ButtonStyle {
     var fullWidth: Bool = true
 
     func makeBody(configuration: Configuration) -> some View {
+        DLButtonBody(configuration: configuration, role: role, fullWidth: fullWidth)
+    }
+}
+
+struct DLButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let role: DLButtonRole
+    let fullWidth: Bool
+    @Environment(\.dlSurface) private var surface
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         configuration.label
             .font(DLFont.button)
             .foregroundStyle(role.label)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .padding(.horizontal, 20)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: DLMetric.buttonHeight)
-            .background(role.fill, in: Capsule())
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .background(role.fill(on: surface), in: Capsule())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
@@ -214,6 +262,20 @@ struct DLButton: View {
     }
 }
 
+/// The round icon look on its own — use as a Menu label.
+struct DLIconLabel: View {
+    let systemImage: String
+    @Environment(\.dlSurface) private var surface
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: DLMetric.iconSize, weight: .semibold))
+            .foregroundStyle(DLButtonRole.secondary.label)
+            .frame(width: DLMetric.buttonHeight, height: DLMetric.buttonHeight)
+            .background(DLButtonRole.secondary.fill(on: surface), in: Circle())
+    }
+}
+
 /// Icon-only button: same height and colours as a secondary button, but round.
 struct DLIconButton: View {
     let systemImage: String
@@ -222,11 +284,7 @@ struct DLIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: DLMetric.iconSize, weight: .semibold))
-                .foregroundStyle(DLButtonRole.secondary.label)
-                .frame(width: DLMetric.buttonHeight, height: DLMetric.buttonHeight)
-                .background(DLButtonRole.secondary.fill, in: Circle())
+            DLIconLabel(systemImage: systemImage)
         }
         .accessibilityLabel(accessibilityLabel)
     }
@@ -248,13 +306,14 @@ struct PanelCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             if let title {
                 Text(title)
-                    .font(DLFont.caption)
-                    .foregroundStyle(Theme.textDim)
+                    .font(DLFont.headline)
+                    .foregroundStyle(Theme.text)
             }
             content
                 .font(DLFont.body)
                 .foregroundStyle(Theme.text)
         }
+        .environment(\.dlSurface, .card)
         .padding(DLMetric.tilePadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.panel, in: RoundedRectangle(cornerRadius: DLMetric.tileRadius, style: .continuous))

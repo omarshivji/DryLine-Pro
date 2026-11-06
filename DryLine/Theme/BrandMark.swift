@@ -1,71 +1,46 @@
 import SwiftUI
 
-/// The DrylineⓇ mark: a stud-wall cross-section with a scan beam sweeping across it.
+/// The DryLine Pro mark: three plasterboard sheets stacked on an orange tile.
 ///
-/// Drawn as vector paths rather than shipped as an image so it recolours with the
-/// active theme and stays crisp at any size.
+/// Drawn as vector shapes rather than shipped as an image so it stays crisp at
+/// any size and follows the theme's accent colour in light and dark mode.
 struct BrandMark: View {
-    var color: Color = Theme.gold
+    /// Tile colour. The sheets are always white.
+    var color: Color = Theme.accent
 
     var body: some View {
         GeometryReader { geo in
-            // Original artwork is designed on a 120 x 120 canvas.
-            let s = min(geo.size.width, geo.size.height) / 120.0
+            // Artwork is designed on a 110 × 110 canvas.
+            let s = min(geo.size.width, geo.size.height) / 110.0
 
-            ZStack {
-                // Outer wall frame
-                RoundedRectangle(cornerRadius: 4 * s)
-                    .stroke(color.opacity(0.8), lineWidth: 2 * s)
-                    .frame(width: 68 * s, height: 68 * s)
-                    .position(x: 60 * s, y: 60 * s)
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 26 * s, style: .continuous)
+                    .fill(color)
+                    .frame(width: 110 * s, height: 110 * s)
 
-                // Top and bottom plates
-                Path { p in
-                    p.move(to: CGPoint(x: 26 * s, y: 38 * s))
-                    p.addLine(to: CGPoint(x: 94 * s, y: 38 * s))
-                    p.move(to: CGPoint(x: 26 * s, y: 82 * s))
-                    p.addLine(to: CGPoint(x: 94 * s, y: 82 * s))
-                }
-                .stroke(color, lineWidth: 3 * s)
-
-                // Studs
-                Path { p in
-                    for x in [38.0, 53.3, 68.6, 84.0] {
-                        p.move(to: CGPoint(x: x * s, y: 38 * s))
-                        p.addLine(to: CGPoint(x: x * s, y: 82 * s))
-                    }
-                }
-                .stroke(color, lineWidth: 3 * s)
-
-                // Scan beam trail
-                LinearGradient(
-                    colors: [color.opacity(0), color.opacity(0.4)],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(width: 88 * s, height: 10 * s)
-                .position(x: 60 * s, y: 57 * s)
-
-                // Scan line with end ticks
-                Path { p in
-                    p.move(to: CGPoint(x: 14 * s, y: 60 * s))
-                    p.addLine(to: CGPoint(x: 106 * s, y: 60 * s))
-                    p.move(to: CGPoint(x: 14 * s, y: 54 * s))
-                    p.addLine(to: CGPoint(x: 14 * s, y: 66 * s))
-                    p.move(to: CGPoint(x: 106 * s, y: 54 * s))
-                    p.addLine(to: CGPoint(x: 106 * s, y: 66 * s))
-                }
-                .stroke(color, lineWidth: 2.5 * s)
+                // Back to front: bottom sheet faintest, top sheet solid.
+                sheet(x: 20, y: 58, width: 64, opacity: 0.55, s: s)
+                sheet(x: 26, y: 42, width: 64, opacity: 0.8, s: s)
+                sheet(x: 32, y: 26, width: 52, opacity: 1, s: s)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
         .aspectRatio(1, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+
+    private func sheet(x: CGFloat, y: CGFloat, width: CGFloat, opacity: Double, s: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 5 * s, style: .continuous)
+            .fill(Color.white.opacity(opacity))
+            .frame(width: width * s, height: 26 * s)
+            .offset(x: x * s, y: y * s)
     }
 }
 
 #Preview {
     HStack(spacing: 20) {
-        BrandMark().frame(width: 44, height: 44)
-        BrandMark().frame(width: 88, height: 88)
+        BrandMark().frame(width: 52, height: 52)
+        BrandMark().frame(width: 110, height: 110)
     }
     .padding()
     .background(Theme.bg)
